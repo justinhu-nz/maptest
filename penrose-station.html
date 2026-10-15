@@ -161,6 +161,16 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--scoria);outline
 .labels span::after{content:"";position:absolute;left:50%;top:100%;width:1px;height:10px;background:rgba(20,22,24,.78)}
 .nogl-msg{display:none;position:absolute;inset:0;margin:auto;height:max-content;padding:20px;text-align:center;color:#1f2326}
 .model.nogl .nogl-msg{display:block}
+.pin{position:absolute;transform:translate(-50%,-50%);width:24px;height:24px;border-radius:50%;border:2px solid #fff;background:#1d7f86;color:#fff;
+  font:600 11px/20px var(--mono);text-align:center;padding:0;cursor:pointer;pointer-events:auto;box-shadow:0 2px 8px rgba(0,0,0,.35);transition:transform .15s}
+.pin:hover,.pin:focus-visible,.pin[aria-expanded="true"]{transform:translate(-50%,-50%) scale(1.18);background:#14595e}
+.pins-off .pin,.pins-off .spin{display:none}
+.spin{cursor:pointer}.spin circle{fill:#1d7f86;stroke:#fff;stroke-width:2}.spin text{fill:#fff;font:600 10px var(--mono);text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.spin:hover circle,.spin:focus circle{fill:#14595e}
+.tip{position:fixed;z-index:20;max-width:260px;background:rgba(18,22,26,.94);color:#eef2f3;border-radius:8px;padding:10px 12px;box-shadow:0 8px 24px rgba(0,0,0,.3);pointer-events:none;
+  font:13px/1.45 var(--body)}
+.tip b{display:block;font:700 15px/1.2 var(--display);margin-bottom:3px;color:#fff}
+.tip .n{font:500 10px var(--mono);letter-spacing:.1em;color:#8fe0da;text-transform:uppercase}
 .wrap{max-width:1200px}
 .hero{display:grid;gap:8px;padding-block:8px 20px}
 .hero p{color:var(--muted)}
@@ -189,6 +199,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--scoria);outline
       <button type="button" id="m-day" aria-pressed="true">Weekday</button>
       <button type="button" id="m-event" aria-pressed="false">Event night</button>
     </div>
+    <div class="seg"><button type="button" id="m-pins" aria-pressed="true">Callouts</button></div>
   </div>
   <div class="model" id="model">
     <canvas id="gl" aria-label="Interactive 3D model of Penrose Gateway"></canvas>
@@ -217,15 +228,12 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--scoria);outline
 </g>
 <g class="prop labels">
 <text x="430" y="120" class="ol ">↖ Go Media Stadium</text>
-<text x="436" y="300" class="ol ">West door</text><text x="436" y="380" class="ol ">Bus stops</text>
-<text x="735" y="200" class="ol ">East door</text>
-<text x="625" y="520" class="ol ">Island W</text><text x="735" y="420" class="ol ">Island B</text>
-<text x="436" y="560" class="ol ">South bridge</text>
 </g>
 <g class="today labels"></g>
 </svg>
       
     </figure>
+<div class="tip" id="tip" role="tooltip" hidden></div>
 </section>
 
 <p class="credit">Aerial: Auckland 0.075m Urban Aerial Photos 2024–25, © Toitū Te Whenua LINZ, CC BY 4.0. Island W after a concept sketch by Nicolas Reid (MRCagney). Concept only; dimensions approximate.</p>
@@ -1698,9 +1706,41 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--scoria);outline
   // ---------- labels ----------
   const cen=p=>[p.reduce((s,q)=>s+q[0],0)/p.length,p.reduce((s,q)=>s+q[1],0)/p.length];
   const LBL=[];
+  // ---------- callouts: numbered pins in 3D and on the plan ----------
+  const CALL=[
+    ['Concourse','A wide glazed concourse from Station Road to Great South Road, with lifts and stairs to every island.',G.lbl.conc,14],
+    ['West entrance and event plaza','About 1,600 m² of queuing space. Crowds are held here and released to the platforms as trains arrive.',[575,410],2],
+    ['Station Road bus stops','Sheltered stops in both directions, right at the west entrance.',[528,410],4.5],
+    ['East entrance','The 66 and Great South Road buses stop beside the lifts.',G.lbl.east,5],
+    ['Island W','New island between the inbound main and the Onehunga branch: step across between trains. After a sketch by Nicolas Reid.',G.lbl.W,3],
+    ['Island A','The existing island, opened up with a single full-length canopy.',G.herC,6],
+    ['Island B','New event island with its own event track for extra stadium trains.',G.lbl.B,6],
+    ['South bridge','A second exit for event crowds, landing on the Station Road footpath with a lift and stair.',P(300,Am(300)-60),13],
+    ['Walk to the stadium','A lit footpath along Station Road to Go Media Stadium, about 15 minutes.',[490,240],2],
+    ['Junction triangle','Event buses and a turnback siding wait here without blocking the main line.',cen(G.tri),3]];
+  const tip=document.getElementById('tip');let openPin=null;
+  function showTip(i,el){const[c,d]=CALL[i];tip.innerHTML=`<span class="n">${String(i+1).padStart(2,'0')}</span><b>${c}</b>${d}`;tip.hidden=false;
+    const r=el.getBoundingClientRect(),tw=tip.offsetWidth,th=tip.offsetHeight;let x=r.right+10,y=r.top+r.height/2-th/2;
+    if(x+tw>innerWidth-8)x=r.left-tw-10;tip.style.left=Math.max(8,x)+'px';tip.style.top=Math.max(8,Math.min(innerHeight-th-8,y))+'px';}
+  function hideTip(){tip.hidden=true;if(openPin){openPin.setAttribute('aria-expanded','false');openPin=null;}}
+  function wire(el,i){el.addEventListener('mouseenter',()=>showTip(i,el));el.addEventListener('mouseleave',()=>{if(openPin!==el)tip.hidden=true;});
+    el.addEventListener('focus',()=>showTip(i,el));el.addEventListener('blur',hideTip);
+    el.addEventListener('click',e=>{e.stopPropagation();if(openPin===el){hideTip();return;}hideTip();openPin=el;el.setAttribute('aria-expanded','true');showTip(i,el);});}
+  document.addEventListener('click',hideTip);addEventListener('scroll',()=>{if(!tip.hidden)hideTip();},{passive:true});
+  const pins3=CALL.map(([c],i)=>{const b=document.createElement('button');b.type='button';b.className='pin';b.textContent=i+1;b.setAttribute('aria-label',c);b.setAttribute('aria-expanded','false');
+    document.getElementById('labels').appendChild(b);wire(b,i);return{b,v:W(CALL[i][2],CALL[i][3])};});
+  {const svg=document.querySelector('#overlay svg'),ns='http://www.w3.org/2000/svg',g=document.createElementNS(ns,'g');g.setAttribute('class','prop');svg.appendChild(g);
+   CALL.forEach(([c,d,p],i)=>{const a=document.createElementNS(ns,'g');a.setAttribute('class','spin');a.setAttribute('tabindex','0');a.setAttribute('role','button');a.setAttribute('aria-label',c);
+     a.innerHTML=`<circle cx="${p[0]}" cy="${p[1]}" r="9"/><text x="${p[0]}" y="${p[1]}">${i+1}</text>`;g.appendChild(a);wire(a,i);});}
+  const pb=document.getElementById('m-pins');
+  pb.onclick=e=>{e.stopPropagation();const on=pb.getAttribute('aria-pressed')!=='true';pb.setAttribute('aria-pressed',on);hideTip();
+    wrap.classList.toggle('pins-off',!on);document.getElementById('overlay').classList.toggle('pins-off',!on);};
   const lw=document.getElementById('labels');
   const lab=LBL.map(([t,p,y,g])=>{const s=document.createElement('span');s.textContent=t;lw.appendChild(s);return{s,v:W(p,y),g};});
   const tmp=new THREE.Vector3();
+  function placePins(w,h){pins3.forEach(o=>{tmp.copy(o.v).project(camera);const vis=tmp.z<1&&Math.abs(tmp.x)<.98&&Math.abs(tmp.y)<.98;
+    o.b.style.visibility=vis?'visible':'hidden';if(vis){o.b.style.left=((tmp.x+1)/2*w)+'px';o.b.style.top=((1-tmp.y)/2*h)+'px';}});
+    if(openPin&&openPin.classList.contains('pin'))showTip(pins3.findIndex(o=>o.b===openPin),openPin);}
   function placeLabels(w,h){lab.forEach(o=>{tmp.copy(o.v).project(camera);const vis=tmp.z<1&&Math.abs(tmp.x)<1&&Math.abs(tmp.y)<1&&(!o.g||o.g.visible);
     o.s.style.display=vis?'':'none';if(vis){o.s.style.left=((tmp.x+1)/2*w)+'px';o.s.style.top=((1-tmp.y)/2*h-8)+'px';}});}
 
@@ -1728,7 +1768,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--scoria);outline
   function size(){const r=wrap.getBoundingClientRect();if(r.width!==W0||r.height!==H0){W0=r.width;H0=r.height;renderer.setSize(W0,H0,false);camera.aspect=W0/H0;camera.updateProjectionMatrix();}}
   new ResizeObserver(size).observe(wrap);size();
   new IntersectionObserver(e=>{visible=e[0].isIntersecting;}).observe(wrap);
-  (function loop(){requestAnimationFrame(loop);if(!visible||!W0)return;controls.update();renderer.render(scene,camera);placeLabels(W0,H0);})();
+  (function loop(){requestAnimationFrame(loop);if(!visible||!W0)return;controls.update();renderer.render(scene,camera);placeLabels(W0,H0);placePins(W0,H0);})();
 })();
 </script>
 
